@@ -50,7 +50,7 @@ def expand_include(output_file : TextIO, input_filepath: str, line : str, includ
 
 
 def process_file(output_file : TextIO, input_file_full_path : str, include_dirs: List[str], dont_include : Set[str]) -> None:
-    with open(input_file_full_path, 'r') as file:
+    with open(input_file_full_path, 'r', encoding='utf-8-sig') as file:
         lines = file.readlines()
         for line in lines:
             # Include directive
@@ -73,42 +73,54 @@ def process_directory(output: TextIO, directory: str, skip_files: Set[str], incl
     for filename in os.listdir(directory):
         filepath: str = os.path.abspath(os.path.join(directory, filename))
         if filepath in skip_files or filepath in dont_include:
+            print(f'skipping {filepath}')
             continue
-
         # Hpp file
-        isHeader: bool = filepath.endswith(".h") or\
-                        filepath.endswith(".hpp")
+        isHeader: bool = filepath.endswith(".h") or filepath.endswith(".hpp")
         if os.path.isfile(filepath) and isHeader:
-            print(f"Found file: {filepath}")
+            print(f"Parsing file: {filepath}")
+            # continue
             process_file(output, filepath, include_dirs, dont_include)
 
 
 def main():
     parser = argparse.ArgumentParser(description="Header preprocessor")
-    parser.add_argument("-D", "--directory", action="append", default=[], help="Directory containing header files")
-    parser.add_argument("-I", "--include",   action="append", default=[], help="Additional include directories")
+    parser.add_argument("-d", "--directory", action="append", default=[], required=True, help="Directory containing header files")
+    parser.add_argument("-i", "--include",   action="append", default=[],                help="Additional include directories")
+    parser.add_argument("-e", "--exclude",   action="append", default=[],                help="Files to exclude from including")
+    parser.add_argument("-o", "--output",                                 required=True, help="Output file or directory")
     args = parser.parse_args()
 
     error_msgs: List[str] = []
 
     for dir in args.directory:
         if not os.path.isdir(dir):
-            error_msgs.append(f"'{dir}' is not a valid directory.")
+            error_msgs.append(f"Search directory '{dir}' is not a valid directory.")
         
     for dir in args.include:
         if not os.path.isdir(dir):
-            error_msgs.append(f"'{dir}' is not a valid directory.")
+            error_msgs.append(f"Include directory '{dir}' is not a valid directory.")
+
+    for dir in args.exclude:
+        if not os.path.isfile(dir):
+            error_msgs.append(f"Exclude directory '{dir}' is not a valid directory.")
 
     if len(error_msgs) > 0:
         for err in error_msgs:
             print(err)
         return
-        
+    
 
-    abs_output_path = os.path.abspath("Output.txt")
-    with open(abs_output_path, "w") as output:
+    abs_output_path = os.path.abspath(args.output)
+    exclude: Set[str] = {abs_output_path}
+    for filepath in args.exclude:
+        exclude.add(os.path.abspath(filepath))
+
+    print(f'Exclude: {exclude}')
+
+    with open(abs_output_path, "w", encoding='utf-8-sig') as output:
         for directory in args.directory:
-            process_directory(output, directory, {abs_output_path}, args.include)
+            process_directory(output, directory, exclude, args.include)
 
 
 if __name__ == "__main__":
